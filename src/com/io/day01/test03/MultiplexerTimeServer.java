@@ -22,6 +22,7 @@ public class MultiplexerTimeServer implements Runnable {
 
     /**
      * 构造函数初始化资源
+     *
      * @param port
      */
     MultiplexerTimeServer(int port) {
@@ -41,7 +42,7 @@ public class MultiplexerTimeServer implements Runnable {
     }
 
     public void stop() {
-        stop = true;
+        this.stop = true;
     }
 
     @Override
@@ -56,9 +57,25 @@ public class MultiplexerTimeServer implements Runnable {
                 while (iterator.hasNext()) {
                     selectionKey = iterator.next();
                     iterator.remove();
-                    handleInput(selectionKey);
+                    try {
+                        handleInput(selectionKey);
+                    } catch (Exception e) {
+                        if (selectionKey != null) {
+                            selectionKey.cancel();
+                            if (selectionKey.channel() != null) {
+                                selectionKey.channel().close();
+                            }
+                        }
+                    }
                 }
             } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        if (selector != null) {
+            try {
+                selector.close();
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -91,11 +108,11 @@ public class MultiplexerTimeServer implements Runnable {
                     //如果客户端发送的请求指令是query time request，则吧服务器当前时间编码后返回给客户端
                     String currentTime = "query time request".equalsIgnoreCase(body)
                             ? new Date(System.currentTimeMillis()).toString() : "error request";
-                    doWrite(sc,currentTime);
-                }else if(readBytes<0){
+                    doWrite(sc, currentTime);
+                } else if (readBytes < 0) {
                     selectionKey.cancel();
                     sc.close();
-                }else {
+                } else {
                     //读到0，忽略
                 }
             }
@@ -104,12 +121,13 @@ public class MultiplexerTimeServer implements Runnable {
 
     /**
      * 将应答消息异步返回给客户端
+     *
      * @param sc
      * @param currentTime
      * @throws IOException
      */
     private void doWrite(SocketChannel sc, String currentTime) throws IOException {
-        if(currentTime!=null && currentTime.length()>0){
+        if (currentTime != null && currentTime.length() > 0) {
             byte[] bytes = currentTime.getBytes();
             ByteBuffer writeBuffer = ByteBuffer.allocate(currentTime.length());
             //将字节数组复制到缓冲区
